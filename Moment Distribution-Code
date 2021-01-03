@@ -1,0 +1,403 @@
+#include <iostream>
+#include <vector>
+#include <cmath>
+#include <math.h>
+using namespace std;
+
+struct load_p{
+    double x, p;
+};
+
+struct load_m{
+    double x, m;
+};
+
+struct load_q{
+    double x, q;
+};
+
+struct load_msls_mot{
+    double q;
+};
+
+struct load_msls_ltr{
+    double q;
+};
+
+struct load_msls_rtl{
+    double q;
+};
+
+struct support{
+    char type;
+    double x; // fasele az mabda e mokhtasat
+    double p, m; //niro va langar motemarkez
+    double c_l, c_r, df_r, df_l, fem_l, fem_r, couple_r, couple_l, sum_l, sum_r;
+    vector <double> co_r, co_l, dist_r, dist_l;
+};
+
+struct beam{
+    double l, e, i, k;
+    vector <load_p> lp;
+    vector <load_m> lm;
+    vector <load_q> lq;
+    vector <load_msls_mot> lqm;
+    vector <load_msls_ltr> lql;
+    vector <load_msls_rtl> lqr;
+};
+
+int n;
+double L;
+vector <beam> b;
+vector <support> s;
+
+bool is_equal(double x, double y){
+    if (abs(x-y) < 0.000000001) return true;
+    return false;
+}
+
+void set_initial(){
+    support tmp_s;
+    tmp_s.type = 'q', tmp_s.x = 0, tmp_s.p = 0, tmp_s.m = 0, tmp_s.sum_l = 0, tmp_s.sum_r = 0;
+    tmp_s.c_l = 0.5, tmp_s.c_r = 0.5, tmp_s.df_r = 0, tmp_s.df_l = 0, tmp_s.fem_l = 0, tmp_s.fem_r = 0, tmp_s.couple_r = 0, tmp_s.couple_l = 0;
+    for (int i = 0; i < n; i++)
+        s.push_back(tmp_s);
+    beam tmp_b;
+    tmp_b.l = 0, tmp_b.e = 0, tmp_b.i = 0, tmp_b.k = 0;
+    for (int i = 0; i < n-1; i++)
+        b.push_back(tmp_b);
+}
+
+void input_s_p(){
+    cout << "Bargozari haye niro motemarkez bar roye tekyegah ra vared konid: (\"shomare\" \"meqdar\"; exp: 1 2):\n";
+    cout << "(Baraye payan -1 vared konid)\n";
+    int x; double p;
+    while (true){
+        cin >> x;
+        if (x < 0) break;
+        cin >> p;
+        s[x-1].p += p;
+    }
+}
+
+void input_s_m(){
+    cout << "Bargozari haye langar motemarkez bar roye tekyegah ra vared konid: (\"shomare\" \"meqdar\"; exp: 1 2):\n";
+    cout << "(Baraye payan -1 vared konid)\n";
+    int x; double m;
+    while (true){
+        cin >> x;
+        if (x < 0) break;
+        cin >> m;
+        s[x-1].m += m;
+    }
+}
+
+void input_load_p(){
+    cout << "Bargozari haye niro motemarkez bar roye ozv ra vared konid: (\"fasele az mabda\" \"meqdar\"; exp: 1.5 2):\n";
+    cout << "(Baraye payan -1 vared konid)\n";
+    double x;
+    load_p tmp;
+    while (true){
+        cin >> x;
+        if (x < 0) break;
+        cin >> tmp.p;
+        for (int i = 0; i < n-1; i++)
+            if (s[i].x < x && x < s[i+1].x){
+                tmp.x = x-s[i].x;
+                b[i].lp.push_back(tmp);
+                break;
+            }
+    }
+}
+
+void input_load_m(){
+    cout << "Bargozari haye langar motemarkez bar roye ozv ra vared konid: (\"fasele az mabda\" \"meqdar\"; exp: 1.5 2):\n";
+    cout << "(Baraye payan -1 vared konid)\n";
+    double x;
+    load_m tmp;
+    while (true){
+        cin >> x;
+        if (x < 0) break;
+        cin >> tmp.m;
+        for (int i = 0; i < n-1; i++)
+            if (s[i].x < x && x < s[i+1].x){
+                tmp.x = x-s[i].x;
+                b[i].lm.push_back(tmp);
+                break;
+            }
+    }
+}
+
+void input_load_q(){
+    cout << "Bargozari haye niro gostarde sabet ra vared konid: (\"noqte aqaz\" \"noqte payan\" \"meqdar\"; exp: 1 2):\n";
+    cout << "(Baraye payan -1 vared konid)\n";
+    double st, fi, q;
+    load_q tmp;
+    while (true){
+        cin >> st;
+        if (st < 0) break;
+        cin >> fi >> q;
+        for (int i = 0; i < n-1; i++)
+            if ((is_equal(st, s[i].x) || s[i].x < st) && st < s[i+1].x)
+                if (is_equal(fi, s[i+1].x) || fi < s[i+1].x){
+                    if (is_equal(st, s[i].x)){
+                        tmp.q = q, tmp.x = fi-s[i].x;
+                        b[i].lq.push_back(tmp);
+                    }else{
+                        tmp.q = -q, tmp.x = st-s[i].x;
+                        b[i].lq.push_back(tmp);
+                        tmp.q = q, tmp.x = fi-s[i].x;
+                        b[i].lq.push_back(tmp);
+                    }
+                }else{
+                    if (is_equal(st, s[i].x)){
+                        tmp.q = q, tmp.x = b[i].l;
+                        b[i].lq.push_back(tmp);
+                    }else{
+                        tmp.q = -q, tmp.x = st-s[i].x;
+                        b[i].lq.push_back(tmp);
+                        tmp.q = q, tmp.x = b[i].l;
+                        b[i].lq.push_back(tmp);
+                    }
+                    st = s[i+1].x;
+                }
+    }
+}
+
+void input_data(){
+    int tmp;
+    char tmp_c;
+    double x, y, z;
+    cout << "Tedade tekyegah ra vared konid:(n>2)\n";
+    cin >> n;
+    set_initial();
+    cout << "Noe tekyegah ha ra vared konid: (\"shomare\" \"type\"; g: Girdar, q: Ghaltaki, m: Mafsali, a: Azad)\n";
+    cout << "Be sorate pishfarz hme Ghaltaki mibashnd. Baraye payan -1 vared konid.\n";
+    while (true){
+        cin >> tmp;
+        if (tmp < 0) break;
+        cin >> s[tmp-1].type;
+    }
+    cout << "Toole ozv ha ra vared konid:\n";
+    for (int i = 0; i < n-1; i++){
+        cout << "Toole ozve beyne tekyegahe " << i+1 << " va " << i+2 << ": ";
+        cin >> b[i].l;
+        L += b[i].l;
+        s[i+1].x = L;
+    }
+    cout << "Aya module elastisite va I baraye tamame ozv ha mosavi mibashad?(y/n) ";
+    cin >> tmp_c;
+    if (tmp_c == 'y'){
+        cout << "Module elastisite va I ra vared konid:\n";
+        cin >> x >> y;
+        for (int i = 0; i < n-1; i++)
+            b[i].e = x, b[i].i = y;
+    }else{
+        for (int i = 0; i < n-1; i++){
+            cout << "E va I ra baraye ozve beyne tekyegahe " << i+1 << " va " << i+2 << " vared konid:";
+            cin >> b[i].e >> b[i].i;
+        }
+    }
+    input_s_p();
+    input_s_m();
+    input_load_p();
+    input_load_m();
+    input_load_q();
+    /*input_msls_ltr();
+    input_msls_rtl();
+    input_msls_mot();*/
+}
+
+void calc_fem(){
+    double fem_l, fem_r, len, x, y, z;
+    for (int i = 0; i < n-1; i++){
+        fem_l = 0, fem_r = 0, len = b[i].l;
+        for (int j = 0; j < b[i].lp.size(); j++){
+            x = b[i].lp[j].x, y = len-x, z = b[i].lp[j].p;
+            fem_l = fem_l+(z*x*y*y/(len*len));
+            fem_r = fem_r-(z*x*x*y/(len*len));
+        }
+        for (int j = 0; j < b[i].lm.size(); j++){
+            x = b[i].lm[j].x, y = len-x, z = b[i].lm[j].m;
+            fem_l = fem_l+(z*y*(y-2*x)/(len*len));
+            fem_r = fem_r-(z*x*(2*y-x)/(len*len));
+        }
+        for (int j = 0; j < b[i].lq.size(); j++){
+            x = b[i].lq[j].x, z = b[i].lq[j].q;
+            fem_l = fem_l+(z*x*x*(6*len*len-8*x*len+3*x*x)/(12*len*len));
+            fem_r = fem_r-(z*x*x*x*(4*len-3*x)/(12*len*len));
+        }
+        s[i].fem_r = fem_l;
+        s[i+1].fem_l = fem_r;
+    }
+    if (s[0].type != 'g'){
+        s[1].fem_l = s[1].fem_l-0.5*s[0].fem_r;
+        s[0].fem_r = 0;
+    }
+    if (s[n-1].type != 'g'){
+        s[n-2].fem_r = s[n-2].fem_r-0.5*s[n-1].fem_l;
+        s[n-1].fem_l = 0;
+    }
+}
+
+void calc_dist_c(){
+    if (s[0].type == 'g')
+        s[0].c_r = 0;
+    else
+        s[1].c_l = 0;
+    if (s[n-1].type == 'g')
+        s[n-1].c_l = 0;
+    else
+        s[n-2].c_r = 0;
+}
+
+void calc_k(){
+    for (int i = 0; i < n-1; i++)
+        b[i].k = 4*b[i].e*b[i].i/b[i].l;
+    if (s[0].type != 'g')
+        b[0].k = 0.75*b[0].k;
+    if (s[n-1].type != 'g')
+        b[n-2].k = 0.75*b[n-2].k;
+}
+
+void calc_df(){
+    for (int i = 1; i < n-1; i++){
+        s[i].df_l = b[i-1].k/(b[i-1].k+b[i].k);
+        s[i].df_r = b[i].k/(b[i-1].k+b[i].k);
+    }
+    if (s[0].type == 'g')
+        s[0].df_r = 0;
+    else
+        s[0].df_r = 1;
+    if (s[n-1].type == 'g')
+        s[n-1].df_l = 0;
+    else
+        s[n-1].df_l = 1;
+}
+
+void calc_joint_couple(){
+    for (int i = 0; i < n; i++){
+        s[i].couple_l = s[i].m*s[i].df_l;
+        s[i].couple_r = s[i].m*s[i].df_r;
+    }
+}
+
+void moment_distribute(int u){
+    for (int i = 1; i < n-1; i++){
+        s[i].co_l.push_back(s[i-1].dist_r[u]*s[i-1].c_r);
+        s[i].co_r.push_back(s[i+1].dist_l[u]*s[i+1].c_l);
+    }
+    s[0].co_r.push_back(s[1].dist_l[u]*s[1].c_l);
+    s[0].co_l.push_back(0);
+    s[n-1].co_l.push_back(s[n-2].dist_r[u]*s[n-2].c_r);
+    s[n-1].co_r.push_back(0);
+    for (int i = 0; i < n; i++){
+        double tmp = (s[i].co_l[u+1]+s[i].co_r[u+1])*(-1);
+        s[i].dist_l.push_back(tmp*s[i].df_l);
+        s[i].dist_r.push_back(tmp*s[i].df_r);
+    }
+}
+
+bool its_enough(int u){
+    double tmp = 0;
+    for (int i = 0; i < n; i++)
+        if (abs(s[i].dist_l[u]) > tmp)
+            tmp = abs(s[i].dist_l[u]);
+        else if (abs(s[i].dist_r[u]) > tmp)
+            tmp = abs(s[i].dist_r[u]);
+    if (tmp < 0.000001)
+        return true;
+    return false;
+}
+
+void output_moment_dis(){
+    int num = s[0].co_l.size();
+    cout << "C:\t" << s[0].c_r;
+    for (int i = 1; i < n-1; i++)
+        cout << " * " << s[i].c_l << " " << s[i].c_r;
+    cout << " * " << s[n-1].c_l << "\n";
+    cout << "K:\t";
+    for (int i = 0; i < n-1; i++)
+        cout << b[i].k << " ";
+    cout << "\n";
+    cout << "DF:\t" << s[0].df_r;
+    for (int i = 1; i < n-1; i++)
+        cout << " * " << s[i].df_l << " " << s[i].df_r;
+    cout << " * " << s[n-1].df_l << "\n";
+    cout << "JC:\t" << s[0].couple_r;
+    for (int i = 1; i < n-1; i++)
+        cout << " * " << s[i].couple_l << " " << s[i].couple_r;
+    cout << " * " << s[n-1].couple_l << "\n";
+    cout << "CO:\t" << s[0].co_r[0];
+    for (int i = 1; i < n-1; i++)
+        cout << " * " << s[i].co_l[0] << " " << s[i].co_r[0];
+    cout << " * " << s[n-1].co_l[0] << "\n";
+    cout << "FEM:\t" << s[0].fem_r;
+    for (int i = 1; i < n-1; i++)
+        cout << " * " << s[i].fem_l << " " << s[i].fem_r;
+    cout << " * " << s[n-1].fem_l << "\n";
+    cout << "Dist:\t" << s[0].dist_r[0];
+    for (int i = 1; i < n-1; i++)
+        cout << " * " << s[i].dist_l[0] << " " << s[i].dist_r[0];
+    cout << " * " << s[n-1].dist_l[0] << "\n";
+    for (int i = 1; i < num-1; i++){
+        cout << "CO:\t" << s[0].co_r[i];
+        for (int j = 1; j < n-1; j++)
+            cout << " * " << s[j].co_l[i] << " " << s[j].co_r[i];
+        cout << " * " << s[n-1].co_l[i] << "\n";
+        cout << "Dist:\t" << s[0].dist_r[0];
+        for (int j = 1; j < n-1; j++)
+            cout << " * " << s[j].dist_l[i] << " " << s[j].dist_r[i];
+        cout << " * " << s[n-1].dist_l[i] << "\n";
+    }
+    cout << "CO:\t" << s[0].co_r[num-1];
+    for (int i = 1; i < n-1; i++)
+        cout << " * " << s[i].co_l[num-1] << " " << s[i].co_r[num-1];
+    cout << " * " << s[n-1].co_l[num-1] << "\n";
+    cout << "Sum:\t" << s[0].sum_r;
+    for (int i = 1; i < n-1; i++)
+        cout << " * " << s[i].sum_l << " " << s[i].sum_r;
+    cout << " * " << s[n-1].sum_l << "\n";
+}
+
+int main(){
+    input_data();
+    calc_fem();
+    calc_dist_c();
+    calc_k();
+    calc_df();
+    calc_joint_couple();
+    for (int i = 1; i < n-1; i++){
+        s[i].co_l.push_back(s[i-1].couple_r*s[i-1].c_r);
+        s[i].co_r.push_back(s[i+1].couple_l*s[i+1].c_l);
+    }
+    s[0].co_r.push_back(s[1].couple_l*s[1].c_l);
+    s[0].co_l.push_back(0);
+    s[n-1].co_l.push_back(s[n-2].couple_r*s[n-2].c_r);
+    s[n-1].co_r.push_back(0);
+    for (int i = 0; i < n; i++){
+        double tmp = (s[i].co_l[0]+s[i].co_r[0]+s[i].fem_l+s[i].fem_r)*(-1);
+        s[i].dist_l.push_back(tmp*s[i].df_l);
+        s[i].dist_r.push_back(tmp*s[i].df_r);
+    }
+    for (int i = 0; i < 100; i++){
+        if (i > 0 && its_enough(i)) break;
+        moment_distribute(i);
+    }
+    int num = s[0].co_l.size();
+    for (int i = 0; i < n; i++){
+        double tmp_l = s[i].couple_l+s[i].fem_l, tmp_r = s[i].couple_r+s[i].fem_r;
+        for (int j = 0; j < num-1; j++){
+            tmp_l = tmp_l+s[i].co_l[j]+s[i].dist_l[j];
+            tmp_r = tmp_r+s[i].co_r[j]+s[i].dist_r[j];
+        }
+        tmp_l = tmp_l+s[i].co_l[num-1];
+        tmp_r = tmp_r+s[i].co_r[num-1];
+        s[i].sum_l = tmp_l;
+        s[i].sum_r = tmp_r;
+    }
+    output_moment_dis();
+    char ch;
+    cin >> ch;
+    return 0;
+}
